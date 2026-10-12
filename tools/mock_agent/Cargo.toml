@@ -1,0 +1,16 @@
+[package]
+name = "bridge-mock-agent"
+version = "0.1.0"
+edition = "2021"
+description = "Mock Android agent CLI for protocol validation and automated testing"
+
+[dependencies]
+bridge-protocol = { path = "../../protocol" }
+tokio = { version = "1.38", features = ["full"] }
+tokio-tungstenite = "0.21"
+futures-util = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.8"
+tracing = "0.1"
+tracing-subscriber = "0.3"

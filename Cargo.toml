@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "protocol",
+    "relay",
+    "linux",
+    "tools/mock_agent",
+]
+resolver = "2"

@@ -1,0 +1,32 @@
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Android & Gradle
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+
+# Java / Kotlin
+*.class
+
+# Security & Local State (Never commit keys or SQLite local databases)
+*.key
+*.keystore
+*.jks
+identity.key
+bridge.db
+bridge.db-journal
+*.log
+
+# IDE & OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db

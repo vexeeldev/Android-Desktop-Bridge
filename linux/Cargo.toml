@@ -1,0 +1,22 @@
+[package]
+name = "bridge-linux"
+version = "0.1.0"
+edition = "2021"
+description = "Desktop controller application for Android Desktop Bridge"
+
+[dependencies]
+bridge-protocol = { path = "../protocol" }
+tokio = { version = "1.38", features = ["full"] }
+tokio-tungstenite = "0.21"
+futures-util = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rusqlite = { version = "0.31", features = ["bundled"] }
+rand = "0.8"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+gtk4 = { version = "0.9", optional = true }
+
+[features]
+default = ["gui"]
+gui = ["dep:gtk4"]
