@@ -15,7 +15,8 @@
         android:label="Android Desktop Bridge"
         android:roundIcon="@android:drawable/ic_dialog_info"
         android:supportsRtl="true"
-        android:theme="@style/Theme.BridgeAgent">
+        android:theme="@style/Theme.BridgeAgent"
+        android:usesCleartextTraffic="true">
 
         <activity
             android:name=".ui.MainActivity"
