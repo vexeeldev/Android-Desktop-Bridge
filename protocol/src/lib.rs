@@ -89,16 +89,33 @@ pub enum MessagePayload {
         status: String, // "online", "offline", "paired", "connected"
     },
 
-    // Device Information (Phase 4 ready)
+    // Device Information (Phase 4)
     DeviceInfoRequest,
     DeviceInfoResponse {
+        device_id: String,
+        manufacturer: String,
         model: String,
         android_version: String,
+        sdk_level: i32,
         battery_level: i32,
         is_charging: bool,
         screen_width: u32,
         screen_height: u32,
         orientation: String,
+        service_status: String,
+    },
+
+    // WebRTC Signaling (Phase 5)
+    WebRtcOffer {
+        sdp: String,
+    },
+    WebRtcAnswer {
+        sdp: String,
+    },
+    WebRtcIceCandidate {
+        candidate: String,
+        sdp_mid: Option<String>,
+        sdp_mline_index: Option<u32>,
     },
 
     // State notification
@@ -203,4 +220,51 @@ mod tests {
         assert_eq!(env.recipient, decoded.recipient);
         assert_eq!(env.payload, decoded.payload);
     }
+
+    #[test]
+    fn test_device_info_roundtrip() {
+        let req = MessageEnvelope::new(
+            "dev_linux".into(),
+            Some("dev_android".into()),
+            MessagePayload::DeviceInfoRequest,
+        );
+        let req_json = req.to_json().unwrap();
+        let decoded_req = MessageEnvelope::from_json(&req_json).unwrap();
+        assert_eq!(decoded_req.payload, MessagePayload::DeviceInfoRequest);
+
+        let resp_payload = MessagePayload::DeviceInfoResponse {
+            device_id: "dev_android".into(),
+            manufacturer: "Google".into(),
+            model: "Pixel 8 Pro".into(),
+            android_version: "14".into(),
+            sdk_level: 34,
+            battery_level: 85,
+            is_charging: true,
+            screen_width: 1080,
+            screen_height: 2400,
+            orientation: "landscape".into(),
+            service_status: "running".into(),
+        };
+
+        let resp = MessageEnvelope::new(
+            "dev_android".into(),
+            Some("dev_linux".into()),
+            resp_payload.clone(),
+        );
+        let resp_json = resp.to_json().unwrap();
+        let decoded_resp = MessageEnvelope::from_json(&resp_json).unwrap();
+        assert_eq!(decoded_resp.payload, resp_payload);
+    }
+
+    #[test]
+    fn test_webrtc_signaling_roundtrip() {
+        let offer = MessagePayload::WebRtcOffer {
+            sdp: "v=0\r\no=- 12345 2 IN IP4 127.0.0.1...".into(),
+        };
+        let env = MessageEnvelope::new("dev_android".into(), Some("dev_linux".into()), offer.clone());
+        let json = env.to_json().unwrap();
+        let decoded = MessageEnvelope::from_json(&json).unwrap();
+        assert_eq!(decoded.payload, offer);
+    }
 }
+

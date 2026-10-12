@@ -80,13 +80,33 @@ data class PongData(
     val nonce: Long
 )
 
-// Device Info (Phase 4 Ready)
+// Device Info (Phase 4)
 data class DeviceInfoResponseData(
+    val device_id: String,
+    val manufacturer: String,
     val model: String,
     val android_version: String,
+    val sdk_level: Int,
     val battery_level: Int,
     val is_charging: Boolean,
     val screen_width: Int,
     val screen_height: Int,
-    val orientation: String
+    val orientation: String,
+    val service_status: String
 )
+
+// WebRTC Signaling (Phase 5)
+data class WebRtcOfferData(
+    val sdp: String
+)
+
+data class WebRtcAnswerData(
+    val sdp: String
+)
+
+data class WebRtcIceCandidateData(
+    val candidate: String,
+    val sdp_mid: String? = null,
+    val sdp_mline_index: Int? = null
+)
+

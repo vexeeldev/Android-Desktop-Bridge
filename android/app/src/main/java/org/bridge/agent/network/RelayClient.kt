@@ -1,16 +1,19 @@
 package org.bridge.agent.network
 
+import android.content.Context
 import android.os.Build
 import android.util.Log
 import com.google.gson.Gson
 import okhttp3.*
 import org.bridge.agent.crypto.DeviceIdentity
 import org.bridge.agent.crypto.KeyStoreManager
+import org.bridge.agent.info.DeviceInfoCollector
 import org.bridge.agent.protocol.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RelayClient(
+    private val context: Context,
     private val relayUrl: String,
     private val identity: DeviceIdentity,
     private val keyStoreManager: KeyStoreManager,
@@ -176,6 +179,18 @@ class RelayClient(
                     }
                 }
 
+                "DeviceInfoRequest" -> {
+                    val info = DeviceInfoCollector.collectDeviceInfo(context, identity, "running")
+                    val respEnv = MessageEnvelope.create(
+                        sender = identity.deviceId,
+                        recipient = envelope.sender,
+                        type = "DeviceInfoResponse",
+                        data = info
+                    )
+                    ws.send(respEnv.toJson())
+                    Log.i(TAG, "Responded to DeviceInfoRequest from ${envelope.sender} with model: ${info.model}")
+                }
+
                 "Ping" -> {
                     val ping = gson.fromJson(data, PingData::class.java)
                     val pongEnv = MessageEnvelope.create(
@@ -190,6 +205,11 @@ class RelayClient(
         } catch (e: Exception) {
             Log.e(TAG, "Error handling message", e)
         }
+    }
+
+    fun sendEnvelope(envelope: MessageEnvelope): Boolean {
+        val json = envelope.toJson()
+        return webSocket?.send(json) ?: false
     }
 
     private fun scheduleReconnect() {

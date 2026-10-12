@@ -55,7 +55,12 @@ class KeyStoreManager(private val context: Context) {
         prefs.edit()
             .putString("trusted_${deviceId}_name", name)
             .putString("trusted_${deviceId}_pubkey", pubKey)
+            .putString("last_trusted_controller", deviceId)
             .apply()
+    }
+
+    fun getLastTrustedControllerId(): String? {
+        return prefs.getString("last_trusted_controller", null)
     }
 
     fun isControllerTrusted(deviceId: String): Boolean {

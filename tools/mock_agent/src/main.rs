@@ -164,6 +164,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         info!("Pairing rejected due to PIN mismatch");
                     }
                 }
+                MessagePayload::DeviceInfoRequest => {
+                    info!("Received DeviceInfoRequest from peer {}", envelope.sender);
+                    let info_response = MessageEnvelope::new(
+                        device_id.clone(),
+                        Some(envelope.sender),
+                        MessagePayload::DeviceInfoResponse {
+                            device_id: device_id.clone(),
+                            manufacturer: "Google".into(),
+                            model: "Pixel 8 Pro".into(),
+                            android_version: "14".into(),
+                            sdk_level: 34,
+                            battery_level: 85,
+                            is_charging: true,
+                            screen_width: 1344,
+                            screen_height: 2992,
+                            orientation: "PORTRAIT".into(),
+                            service_status: "FOREGROUND_ACTIVE".into(),
+                        },
+                    );
+                    ws_sender.send(Message::Text(info_response.to_json()?)).await?;
+                    info!("Sent DeviceInfoResponse back to peer");
+                }
                 MessagePayload::Ping { nonce } => {
                     let pong = MessageEnvelope::new(
                         device_id.clone(),

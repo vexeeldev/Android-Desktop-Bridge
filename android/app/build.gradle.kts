@@ -48,6 +48,9 @@ dependencies {
     // JSON serialization
     implementation("com.google.code.gson:gson:2.11.0")
 
+    // WebRTC Android
+    implementation("io.getstream:stream-webrtc-android:1.3.8")
+
     // BouncyCastle for Ed25519 asymmetric cryptography matching Rust bridge-protocol
     implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
 

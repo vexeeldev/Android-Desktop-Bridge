@@ -3,12 +3,15 @@ use crate::storage::{Database, TrustedDevice};
 use bridge_protocol::crypto::device_id_from_pubkey_hex;
 use bridge_protocol::{MessageEnvelope, MessagePayload};
 use futures_util::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, watch, Mutex};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 use tracing::{error, info, warn};
+
+use crate::webrtc::WebRtcReceiver;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ConnectionStatus {
@@ -23,25 +26,51 @@ pub enum ConnectionStatus {
     Error(String),
 }
 
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+pub struct DeviceInfo {
+    pub device_id: String,
+    pub manufacturer: String,
+    pub model: String,
+    pub android_version: String,
+    pub sdk_level: i32,
+    pub battery_level: i32,
+    pub is_charging: bool,
+    pub screen_width: u32,
+    pub screen_height: u32,
+    pub orientation: String,
+    pub service_status: String,
+}
+
 pub struct BridgeClient {
     identity: Arc<IdentityManager>,
     db: Arc<Database>,
     status_tx: watch::Sender<ConnectionStatus>,
     status_rx: watch::Receiver<ConnectionStatus>,
+    info_tx: watch::Sender<Option<DeviceInfo>>,
+    info_rx: watch::Receiver<Option<DeviceInfo>>,
     outbound_tx: mpsc::UnboundedSender<String>,
+    webrtc: Arc<WebRtcReceiver>,
 }
 
 impl BridgeClient {
     pub fn new(identity: Arc<IdentityManager>, db: Arc<Database>) -> (Self, mpsc::UnboundedReceiver<String>) {
         let (status_tx, status_rx) = watch::channel(ConnectionStatus::Disconnected);
+        let (info_tx, info_rx) = watch::channel(None);
         let (outbound_tx, outbound_rx) = mpsc::unbounded_channel();
+        let webrtc = Arc::new(WebRtcReceiver::new(
+            identity.device_id(),
+            outbound_tx.clone(),
+        ));
 
         let client = Self {
             identity,
             db,
             status_tx,
             status_rx,
+            info_tx,
+            info_rx,
             outbound_tx,
+            webrtc,
         };
 
         (client, outbound_rx)
@@ -49,6 +78,10 @@ impl BridgeClient {
 
     pub fn status_receiver(&self) -> watch::Receiver<ConnectionStatus> {
         self.status_rx.clone()
+    }
+
+    pub fn info_receiver(&self) -> watch::Receiver<Option<DeviceInfo>> {
+        self.info_rx.clone()
     }
 
     #[allow(dead_code)]
@@ -70,8 +103,76 @@ impl BridgeClient {
         }
     }
 
+    pub fn request_device_info(&self, target_id: Option<String>) {
+        let envelope = MessageEnvelope::new(
+            self.identity.device_id(),
+            target_id,
+            MessagePayload::DeviceInfoRequest,
+        );
+        if let Ok(json) = envelope.to_json() {
+            let _ = self.outbound_tx.send(json);
+            info!("Queued DeviceInfoRequest for peer");
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn send_envelope(&self, envelope: MessageEnvelope) {
+        if let Ok(json) = envelope.to_json() {
+            let _ = self.outbound_tx.send(json);
+        }
+    }
+
+    pub fn webrtc(&self) -> Arc<WebRtcReceiver> {
+        Arc::clone(&self.webrtc)
+    }
+
+    pub fn start_screen_stream(&self, target_peer_id: String) {
+        let webrtc = Arc::clone(&self.webrtc);
+        let outbound_tx = self.outbound_tx.clone();
+        let my_id = self.identity.device_id();
+        let target_clone = target_peer_id.clone();
+        tokio::spawn(async move {
+            let start_env = MessageEnvelope::new(
+                my_id,
+                Some(target_clone.clone()),
+                MessagePayload::ScreenStart {
+                    width: 1920,
+                    height: 1080,
+                    fps: 60,
+                },
+            );
+            if let Ok(json) = start_env.to_json() {
+                let _ = outbound_tx.send(json);
+            }
+            if let Err(e) = webrtc.start_stream_session(target_clone).await {
+                error!("Failed to start WebRTC session: {}", e);
+            }
+        });
+    }
+
+    pub fn stop_screen_stream(&self, target_peer_id: Option<String>) {
+        let webrtc = Arc::clone(&self.webrtc);
+        let outbound_tx = self.outbound_tx.clone();
+        let my_id = self.identity.device_id();
+        tokio::spawn(async move {
+            let stop_env = MessageEnvelope::new(
+                my_id,
+                target_peer_id,
+                MessagePayload::ScreenStop,
+            );
+            if let Ok(json) = stop_env.to_json() {
+                let _ = outbound_tx.send(json);
+            }
+            webrtc.stop_stream().await;
+        });
+    }
+
     pub fn status_sender(&self) -> watch::Sender<ConnectionStatus> {
         self.status_tx.clone()
+    }
+
+    pub fn info_sender(&self) -> watch::Sender<Option<DeviceInfo>> {
+        self.info_tx.clone()
     }
 
     pub async fn run_loop(
@@ -82,6 +183,7 @@ impl BridgeClient {
         let identity = Arc::clone(&self.identity);
         let db = Arc::clone(&self.db);
         let status_tx = self.status_sender();
+        let info_tx = self.info_sender();
         let shared_outbound_rx = Arc::new(Mutex::new(outbound_rx));
 
         loop {
@@ -144,6 +246,8 @@ impl BridgeClient {
                         continue;
                     }
 
+                    let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Message>();
+
                     // Handshake OK: check if already paired with any trusted device
                     let trusted_list = db.list_trusted_devices().unwrap_or_default();
                     if let Some(primary_dev) = trusted_list.first() {
@@ -151,14 +255,22 @@ impl BridgeClient {
                             device_id: primary_dev.device_id.clone(),
                             device_name: primary_dev.name.clone(),
                         });
+                        // Automatically request DeviceInfo upon connect
+                        let req = MessageEnvelope::new(
+                            identity.device_id(),
+                            Some(primary_dev.device_id.clone()),
+                            MessagePayload::DeviceInfoRequest,
+                        );
+                        if let Ok(json) = req.to_json() {
+                            let _ = cmd_tx.send(Message::Text(json));
+                            info!("Automatically sent DeviceInfoRequest to {}", primary_dev.device_id);
+                        }
                     } else {
                         let _ = status_tx.send(ConnectionStatus::RelayConnectedWaitingForAndroid);
                     }
 
                     // Spawn heartbeat task
                     let mut ping_interval = tokio::time::interval(Duration::from_secs(15));
-                    let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Message>();
-
                     let dev_id_for_ping = identity.device_id();
                     let cmd_tx_ping = cmd_tx.clone();
                     let heartbeat_task = tokio::spawn(async move {
@@ -241,9 +353,19 @@ impl BridgeClient {
                                                 let _ = db.save_trusted_device(&trusted);
                                                 info!("Pairing successful with {} ({})", responder_name, responder_id);
                                                 let _ = status_tx.send(ConnectionStatus::AndroidConnected {
-                                                    device_id: responder_id,
+                                                    device_id: responder_id.clone(),
                                                     device_name: responder_name,
                                                 });
+
+                                                // Automatically request DeviceInfo upon new pairing
+                                                let req = MessageEnvelope::new(
+                                                    identity.device_id(),
+                                                    Some(responder_id),
+                                                    MessagePayload::DeviceInfoRequest,
+                                                );
+                                                if let Ok(json) = req.to_json() {
+                                                    let _ = cmd_tx.send(Message::Text(json));
+                                                }
                                             } else {
                                                 warn!("Pairing rejected: responder ID does not match public key");
                                             }
@@ -253,14 +375,55 @@ impl BridgeClient {
                                         let _ = status_tx.send(ConnectionStatus::RelayConnectedWaitingForAndroid);
                                     }
                                 }
+                                MessagePayload::DeviceInfoResponse {
+                                    device_id,
+                                    manufacturer,
+                                    model,
+                                    android_version,
+                                    sdk_level,
+                                    battery_level,
+                                    is_charging,
+                                    screen_width,
+                                    screen_height,
+                                    orientation,
+                                    service_status,
+                                } => {
+                                    info!(
+                                        "Received DeviceInfo from {}: {} {} (Android {} / SDK {}), Battery: {}% (charging={}), Screen: {}x{} ({})",
+                                        device_id, manufacturer, model, android_version, sdk_level, battery_level, is_charging, screen_width, screen_height, orientation
+                                    );
+                                    let dev_info = DeviceInfo {
+                                        device_id,
+                                        manufacturer,
+                                        model,
+                                        android_version,
+                                        sdk_level,
+                                        battery_level,
+                                        is_charging,
+                                        screen_width,
+                                        screen_height,
+                                        orientation,
+                                        service_status,
+                                    };
+                                    let _ = info_tx.send(Some(dev_info));
+                                }
                                 MessagePayload::PeerStatus { peer_id, status } => {
                                     info!("Peer {} status: {}", peer_id, status);
                                     if status == "online" {
                                         if let Ok(Some(trusted)) = db.get_trusted_device(&peer_id) {
                                             let _ = status_tx.send(ConnectionStatus::AndroidConnected {
-                                                device_id: trusted.device_id,
+                                                device_id: trusted.device_id.clone(),
                                                 device_name: trusted.name,
                                             });
+                                            // Request device info
+                                            let req = MessageEnvelope::new(
+                                                identity.device_id(),
+                                                Some(trusted.device_id),
+                                                MessagePayload::DeviceInfoRequest,
+                                            );
+                                            if let Ok(json) = req.to_json() {
+                                                let _ = cmd_tx.send(Message::Text(json));
+                                            }
                                         }
                                     }
                                 }
@@ -271,10 +434,44 @@ impl BridgeClient {
                                         let name = trusted.first().map(|d| d.name.clone()).unwrap_or_else(|| "Android Device".into());
                                         let dev_id = trusted.first().map(|d| d.device_id.clone()).unwrap_or_else(|| envelope.sender.clone());
                                         let _ = status_tx.send(ConnectionStatus::AndroidConnected {
-                                            device_id: dev_id,
+                                            device_id: dev_id.clone(),
                                             device_name: name,
                                         });
+                                        // Request device info
+                                        let req = MessageEnvelope::new(
+                                            identity.device_id(),
+                                            Some(dev_id),
+                                            MessagePayload::DeviceInfoRequest,
+                                        );
+                                        if let Ok(json) = req.to_json() {
+                                            let _ = cmd_tx.send(Message::Text(json));
+                                        }
                                     }
+                                }
+                                MessagePayload::WebRtcOffer { sdp } => {
+                                    let webrtc_c = Arc::clone(&self.webrtc);
+                                    let sender = envelope.sender.clone();
+                                    tokio::spawn(async move {
+                                        if let Err(e) = webrtc_c.handle_remote_offer(sdp, sender).await {
+                                            error!("Failed to handle WebRTC offer: {}", e);
+                                        }
+                                    });
+                                }
+                                MessagePayload::WebRtcAnswer { sdp } => {
+                                    let webrtc_c = Arc::clone(&self.webrtc);
+                                    tokio::spawn(async move {
+                                        if let Err(e) = webrtc_c.handle_remote_answer(sdp).await {
+                                            error!("Failed to handle WebRTC answer: {}", e);
+                                        }
+                                    });
+                                }
+                                MessagePayload::WebRtcIceCandidate { candidate, sdp_mid, sdp_mline_index } => {
+                                    let webrtc_c = Arc::clone(&self.webrtc);
+                                    tokio::spawn(async move {
+                                        if let Err(e) = webrtc_c.handle_remote_candidate(candidate, sdp_mid, sdp_mline_index).await {
+                                            error!("Failed to handle WebRTC ICE candidate: {}", e);
+                                        }
+                                    });
                                 }
                                 _ => {}
                             }

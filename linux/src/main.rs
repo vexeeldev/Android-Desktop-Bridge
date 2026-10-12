@@ -2,6 +2,7 @@ mod client;
 mod identity;
 mod storage;
 mod ui;
+pub mod webrtc;
 
 use client::{BridgeClient, ConnectionStatus};
 use identity::IdentityManager;
