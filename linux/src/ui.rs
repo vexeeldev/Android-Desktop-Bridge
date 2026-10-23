@@ -9,7 +9,7 @@ pub mod gtk_ui {
     use gtk4::prelude::*;
     use gtk4::{
         Application, ApplicationWindow, Box, Button, DrawingArea, Entry, HeaderBar, Label,
-        Orientation, ScrolledWindow,
+        MenuButton, Orientation, Popover, ScrolledWindow,
     };
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -22,16 +22,14 @@ pub mod gtk_ui {
         identity: Arc<IdentityManager>,
         db: Arc<Database>,
     ) {
-        let app = Application::builder()
-            .application_id(app_id)
-            .build();
+        let app = Application::builder().application_id(app_id).build();
 
         app.connect_activate(move |app| {
             let window = ApplicationWindow::builder()
                 .application(app)
-                .title("Android Desktop Bridge — Landscape Screen & Controller")
-                .default_width(1150)
-                .default_height(720)
+                .title("Android Desktop Bridge")
+                .default_width(1280)
+                .default_height(760)
                 .build();
 
             let header = HeaderBar::new();
@@ -42,10 +40,10 @@ pub mod gtk_ui {
             css.load_from_data(
                 "
                 .badge {
-                    padding: 5px 12px;
-                    border-radius: 12px;
+                    padding: 4px 10px;
+                    border-radius: 10px;
                     font-weight: bold;
-                    font-size: 13px;
+                    font-size: 12px;
                 }
                 .badge.connected {
                     background-color: #2ec27e;
@@ -67,12 +65,7 @@ pub mod gtk_ui {
                     background-color: alpha(currentColor, 0.05);
                     border: 1px solid alpha(currentColor, 0.1);
                     border-radius: 12px;
-                    padding: 16px;
-                }
-                .stream-viewport {
-                    background-color: #0b0f14;
-                    border: 1px solid alpha(currentColor, 0.2);
-                    border-radius: 14px;
+                    padding: 14px;
                 }
                 .dim-label {
                     opacity: 0.7;
@@ -81,7 +74,7 @@ pub mod gtk_ui {
                 .stats-label {
                     font-family: monospace;
                     font-size: 12px;
-                    opacity: 0.85;
+                    opacity: 0.9;
                 }
                 ",
             );
@@ -91,124 +84,67 @@ pub mod gtk_ui {
                 gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
             );
 
-            // Main Split Container: Horizontal (Stream on Left, Controller & Specs on Right)
-            let main_box = Box::new(Orientation::Horizontal, 16);
-            main_box.set_margin_top(16);
-            main_box.set_margin_bottom(16);
-            main_box.set_margin_start(16);
-            main_box.set_margin_end(16);
-
             // ============================================================
-            // LEFT PANEL: REAL ANDROID SCREEN STREAMING (LANDSCAPE)
+            // HEADER BAR: LEFT SIDE (STATUS & METRICS)
             // ============================================================
-            let stream_panel = Box::new(Orientation::Vertical, 12);
-            stream_panel.set_hexpand(true);
-            stream_panel.set_vexpand(true);
+            let header_left = Box::new(Orientation::Horizontal, 10);
+            header_left.set_margin_start(6);
 
-            // 1. Stream Header Bar
-            let stream_header = Box::new(Orientation::Horizontal, 10);
-            let stream_title = Label::new(Some("Android Screen Stream"));
-            stream_title.set_css_classes(&["title-3"]);
-            stream_title.set_hexpand(true);
-            stream_title.set_halign(gtk4::Align::Start);
+            let app_title = Label::new(Some("Android Bridge"));
+            app_title.set_css_classes(&["title-4"]);
 
             let webrtc_badge = Label::new(Some(" ● WebRTC Disconnected "));
             webrtc_badge.set_css_classes(&["badge", "error"]);
 
-            stream_header.append(&stream_title);
-            stream_header.append(&webrtc_badge);
-            stream_panel.append(&stream_header);
-
-            // 2. Stream Metrics & Adaptive Bitrate Bar
-            let metrics_box = Box::new(Orientation::Horizontal, 12);
-            let metrics_label = Label::new(Some(
-                "Resolution: 1920 × 1080 (Landscape) | Low Latency (<30ms) | Adaptive Bitrate: Auto | 60 FPS",
-            ));
+            let metrics_label = Label::new(Some("Waiting for stream..."));
             metrics_label.set_css_classes(&["stats-label"]);
-            metrics_label.set_halign(gtk4::Align::Start);
-            metrics_box.append(&metrics_label);
-            stream_panel.append(&metrics_box);
 
-            // 3. Landscape Viewport Container (16:9 Aspect Ratio Presentation)
-            let viewport_box = Box::new(Orientation::Vertical, 0);
-            viewport_box.set_css_classes(&["stream-viewport"]);
-            viewport_box.set_hexpand(true);
-            viewport_box.set_vexpand(true);
-            viewport_box.set_valign(gtk4::Align::Fill);
-            viewport_box.set_halign(gtk4::Align::Fill);
+            header_left.append(&app_title);
+            header_left.append(&webrtc_badge);
+            header_left.append(&metrics_label);
+            header.pack_start(&header_left);
 
-            // DrawingArea for WebRTC frame rendering
-            let drawing_area = DrawingArea::new();
-            drawing_area.set_hexpand(true);
-            drawing_area.set_vexpand(true);
-            drawing_area.set_content_width(720);
-            drawing_area.set_content_height(405); // Default 16:9 landscape aspect ratio
+            // ============================================================
+            // HEADER BAR: RIGHT SIDE (ACTIONS & POPUP MENU)
+            // ============================================================
+            let header_right = Box::new(Orientation::Horizontal, 8);
+            header_right.set_margin_end(6);
 
-            drawing_area.set_draw_func(|_, cr, width, height| {
-                // Background fill
-                cr.set_source_rgb(0.04, 0.06, 0.09);
-                let _ = cr.paint();
-
-                // Draw decorative landscape screen frame & placeholder graphics
-                cr.set_source_rgba(0.2, 0.4, 0.8, 0.15);
-                let _ = cr.rectangle(20.0, 20.0, width as f64 - 40.0, height as f64 - 40.0);
-                let _ = cr.fill();
-
-                // Draw central icon & landscape screen label
-                cr.set_source_rgb(0.8, 0.85, 0.95);
-                cr.select_font_face("Sans", cairo::FontSlant::Normal, cairo::FontWeight::Bold);
-                cr.set_font_size(18.0);
-                let text = "Android Desktop View (Landscape 16:9)";
-                if let Ok(extents) = cr.text_extents(text) {
-                    cr.move_to(
-                        (width as f64 - extents.width()) / 2.0,
-                        height as f64 / 2.0 - 10.0,
-                    );
-                    let _ = cr.show_text(text);
-                }
-
-                cr.select_font_face("Sans", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-                cr.set_font_size(13.0);
-                cr.set_source_rgba(0.7, 0.75, 0.85, 0.7);
-                let subtext = "WebRTC MediaProjection Pipeline — Low Latency Native Display";
-                if let Ok(sub_ext) = cr.text_extents(subtext) {
-                    cr.move_to(
-                        (width as f64 - sub_ext.width()) / 2.0,
-                        height as f64 / 2.0 + 20.0,
-                    );
-                    let _ = cr.show_text(subtext);
-                }
-            });
-
-            viewport_box.append(&drawing_area);
-            stream_panel.append(&viewport_box);
-
-            // 4. Stream Action Controls Toolbar
-            let controls_bar = Box::new(Orientation::Horizontal, 12);
-            let btn_stream_toggle = Button::with_label("▶ Start Screen Stream");
+            let btn_stream_toggle = Button::with_label("▶ Start Stream");
             btn_stream_toggle.set_css_classes(&["suggested-action"]);
 
-            let btn_reconnect = Button::with_label("↻ Reconnect P2P");
-            let btn_fullscreen = Button::with_label("⛶ Toggle Fullscreen");
+            // Mode Aspect: 0 (Fit Rasio Asli), 1 (Stretch Fill Layar Penuh)
+            let stretch_mode = Rc::new(RefCell::new(false));
+            let btn_aspect = Button::with_label("📐 Mode: Fit Rasio");
 
-            controls_bar.append(&btn_stream_toggle);
-            controls_bar.append(&btn_reconnect);
-            controls_bar.append(&btn_fullscreen);
-            stream_panel.append(&controls_bar);
+            let btn_fullscreen = Button::with_label("⛶ Fullscreen");
 
-            main_box.append(&stream_panel);
+            // Floating Popup Menu Button
+            let menu_btn = MenuButton::new();
+            menu_btn.set_label("📱 Device & Pairing");
+
+            header_right.append(&btn_stream_toggle);
+            header_right.append(&btn_aspect);
+            header_right.append(&menu_btn);
+            header_right.append(&btn_fullscreen);
+            header.pack_end(&header_right);
 
             // ============================================================
-            // RIGHT PANEL: DEVICE SPECS, PAIRING & IDENTITY
+            // POPOVER CONTENT: SPECIFICATIONS, PAIRING & IDENTITY
             // ============================================================
-            let right_panel = Box::new(Orientation::Vertical, 14);
-            right_panel.set_size_request(380, -1);
+            let popover = Popover::new();
+            let popover_scroll = ScrolledWindow::new();
+            popover_scroll.set_hscrollbar_policy(gtk4::PolicyType::Never);
+            popover_scroll.set_min_content_width(380);
+            popover_scroll.set_max_content_height(560);
 
-            let scrolled_right = ScrolledWindow::new();
-            scrolled_right.set_hscrollbar_policy(gtk4::PolicyType::Never);
-            scrolled_right.set_child(Some(&right_panel));
+            let popover_box = Box::new(Orientation::Vertical, 12);
+            popover_box.set_margin_top(14);
+            popover_box.set_margin_bottom(14);
+            popover_box.set_margin_start(14);
+            popover_box.set_margin_end(14);
 
-            // Status Indicator Banner
+            // 1. Status Indicator Banner
             let status_box = Box::new(Orientation::Horizontal, 10);
             let status_badge = Label::new(Some(" ● DISCONNECTED "));
             status_badge.set_css_classes(&["badge", "error"]);
@@ -216,9 +152,9 @@ pub mod gtk_ui {
             status_label.set_css_classes(&["title-4"]);
             status_box.append(&status_badge);
             status_box.append(&status_label);
-            right_panel.append(&status_box);
+            popover_box.append(&status_box);
 
-            // Android Device Information Panel (Phase 4 specs)
+            // 2. Android Device Information Panel
             let device_card = Box::new(Orientation::Vertical, 10);
             device_card.set_css_classes(&["card"]);
 
@@ -289,9 +225,9 @@ pub mod gtk_ui {
             info_grid.attach(&dev_id_val, 1, 5, 1, 1);
 
             device_card.append(&info_grid);
-            right_panel.append(&device_card);
+            popover_box.append(&device_card);
 
-            // Linux Controller Identity Card
+            // 3. Linux Controller Identity Card
             let identity_card = Box::new(Orientation::Vertical, 6);
             identity_card.set_css_classes(&["card"]);
             let id_title = Label::new(Some("Linux Controller Identity"));
@@ -302,9 +238,9 @@ pub mod gtk_ui {
             id_val.set_selectable(true);
             identity_card.append(&id_title);
             identity_card.append(&id_val);
-            right_panel.append(&identity_card);
+            popover_box.append(&identity_card);
 
-            // Pairing Card
+            // 4. Pairing Card
             let pair_card = Box::new(Orientation::Vertical, 8);
             pair_card.set_css_classes(&["card"]);
             let pair_title = Label::new(Some("Pairing"));
@@ -332,9 +268,94 @@ pub mod gtk_ui {
             input_box.append(&pair_btn);
             pair_card.append(&pair_title);
             pair_card.append(&input_box);
-            right_panel.append(&pair_card);
+            popover_box.append(&pair_card);
 
-            main_box.append(&scrolled_right);
+            // 5. Reconnect Button
+            let btn_reconnect = Button::with_label("↻ Reconnect P2P Stream");
+            popover_box.append(&btn_reconnect);
+
+            popover_scroll.set_child(Some(&popover_box));
+            popover.set_child(Some(&popover_scroll));
+            menu_btn.set_popover(Some(&popover));
+
+            // ============================================================
+            // FULL-WINDOW SCREEN STREAMING VIEWPORT (NO BOX CROWDING)
+            // ============================================================
+            let current_surface: Rc<RefCell<Option<cairo::ImageSurface>>> =
+                Rc::new(RefCell::new(None));
+            let drawing_area = DrawingArea::new();
+            drawing_area.set_hexpand(true);
+            drawing_area.set_vexpand(true);
+
+            let surface_ref = Rc::clone(&current_surface);
+            let is_stretch = Rc::clone(&stretch_mode);
+            drawing_area.set_draw_func(move |_, cr, width, height| {
+                let stretch = *is_stretch.borrow();
+                if let Some(surface) = surface_ref.borrow().as_ref() {
+                    let frame_w = surface.width() as f64;
+                    let frame_h = surface.height() as f64;
+                    let target_w = width as f64;
+                    let target_h = height as f64;
+
+                    let _ = cr.save();
+                    // Background
+                    cr.set_source_rgb(0.04, 0.06, 0.09);
+                    let _ = cr.paint();
+
+                    if stretch {
+                        // Stretch to fill 100% window dimensions
+                        cr.scale(target_w / frame_w, target_h / frame_h);
+                        let _ = cr.set_source_surface(surface, 0.0, 0.0);
+                        let _ = cr.paint();
+                    } else {
+                        // Proportional aspect-ratio fit
+                        let scale = (target_w / frame_w).min(target_h / frame_h);
+                        let draw_w = frame_w * scale;
+                        let draw_h = frame_h * scale;
+                        let offset_x = (target_w - draw_w) / 2.0;
+                        let offset_y = (target_h - draw_h) / 2.0;
+
+                        cr.translate(offset_x, offset_y);
+                        cr.scale(scale, scale);
+                        let _ = cr.set_source_surface(surface, 0.0, 0.0);
+                        let _ = cr.paint();
+                    }
+
+                    let _ = cr.restore();
+                } else {
+                    // Sleek dark placeholder when waiting for stream
+                    cr.set_source_rgb(0.04, 0.06, 0.09);
+                    let _ = cr.paint();
+
+                    cr.set_source_rgb(0.85, 0.9, 0.98);
+                    cr.select_font_face("Sans", cairo::FontSlant::Normal, cairo::FontWeight::Bold);
+                    cr.set_font_size(22.0);
+                    let text = "Android Desktop Bridge";
+                    if let Ok(extents) = cr.text_extents(text) {
+                        cr.move_to(
+                            (width as f64 - extents.width()) / 2.0,
+                            height as f64 / 2.0 - 15.0,
+                        );
+                        let _ = cr.show_text(text);
+                    }
+
+                    cr.select_font_face(
+                        "Sans",
+                        cairo::FontSlant::Normal,
+                        cairo::FontWeight::Normal,
+                    );
+                    cr.set_font_size(14.0);
+                    cr.set_source_rgba(0.7, 0.75, 0.85, 0.75);
+                    let subtext = "Full Window Screen Mirroring • Press ▶ Start Stream to connect";
+                    if let Ok(sub_ext) = cr.text_extents(subtext) {
+                        cr.move_to(
+                            (width as f64 - sub_ext.width()) / 2.0,
+                            height as f64 / 2.0 + 20.0,
+                        );
+                        let _ = cr.show_text(subtext);
+                    }
+                }
+            });
 
             // Connect target state
             let connected_target = Rc::new(RefCell::new(None::<String>));
@@ -372,6 +393,22 @@ pub mod gtk_ui {
                 }
             });
 
+            // Connect Aspect / Stretch mode button
+            let stretch_click = Rc::clone(&stretch_mode);
+            let btn_aspect_clone = btn_aspect.clone();
+            let drawing_area_aspect = drawing_area.clone();
+            btn_aspect.connect_clicked(move |_| {
+                let current = *stretch_click.borrow();
+                let new_mode = !current;
+                *stretch_click.borrow_mut() = new_mode;
+                if new_mode {
+                    btn_aspect_clone.set_label("↔️ Mode: Stretch (Penuh)");
+                } else {
+                    btn_aspect_clone.set_label("📐 Mode: Fit Rasio");
+                }
+                drawing_area_aspect.queue_draw();
+            });
+
             // Connect fullscreen button
             let win_clone = window.clone();
             btn_fullscreen.connect_clicked(move |_| {
@@ -398,6 +435,7 @@ pub mod gtk_ui {
             let webrtc_rec = client.webrtc();
             let mut webrtc_state_rx = webrtc_rec.state_receiver();
             let mut webrtc_stats_rx = webrtc_rec.stats_receiver();
+            let mut webrtc_frame_rx = webrtc_rec.frame_receiver();
 
             let status_label_c = status_label.clone();
             let status_badge_c = status_badge.clone();
@@ -414,6 +452,66 @@ pub mod gtk_ui {
             let refresh_btn_c = refresh_btn.clone();
             let connected_target_c = Rc::clone(&connected_target);
             let is_streaming_c = Rc::clone(&is_streaming_active);
+            let current_surface_cleaner = Rc::clone(&current_surface);
+            let drawing_area_cleaner = drawing_area.clone();
+
+            // High frequency (approx 60 FPS / 16ms) video frame update loop
+            let current_surface_updater = Rc::clone(&current_surface);
+            let drawing_area_redraw = drawing_area.clone();
+            let mut frame_render_count = 0u64;
+            let mut last_render_log = std::time::Instant::now();
+
+            glib::timeout_add_local(Duration::from_millis(16), move || {
+                if webrtc_frame_rx.has_changed().unwrap_or(false) {
+                    if let Some(frame) = webrtc_frame_rx.borrow_and_update().clone() {
+                        let w = frame.width as i32;
+                        let h = frame.height as i32;
+                        let mut recreate = match current_surface_updater.borrow().as_ref() {
+                            Some(s) => s.width() != w || s.height() != h,
+                            None => true,
+                        };
+
+                        if !recreate {
+                            if let Some(surf) = current_surface_updater.borrow_mut().as_mut() {
+                                if let Ok(mut data) = surf.data() {
+                                    let len = data.len().min(frame.bgra_data.len());
+                                    data[..len].copy_from_slice(&frame.bgra_data[..len]);
+                                } else {
+                                    recreate = true;
+                                }
+                            }
+                        }
+
+                        if recreate {
+                            if let Ok(mut surf) =
+                                cairo::ImageSurface::create(cairo::Format::Rgb24, w, h)
+                            {
+                                if let Ok(mut data) = surf.data() {
+                                    let len = data.len().min(frame.bgra_data.len());
+                                    data[..len].copy_from_slice(&frame.bgra_data[..len]);
+                                }
+                                *current_surface_updater.borrow_mut() = Some(surf);
+                            }
+                        }
+
+                        drawing_area_redraw.queue_draw();
+
+                        frame_render_count += 1;
+                        if frame_render_count <= 5
+                            || last_render_log.elapsed() >= Duration::from_secs(2)
+                        {
+                            tracing::info!(
+                                "GTK4 renderer drew frame #{}: {}x{} (full-window redrawn)",
+                                frame_render_count,
+                                w,
+                                h
+                            );
+                            last_render_log = std::time::Instant::now();
+                        }
+                    }
+                }
+                glib::ControlFlow::Continue
+            });
 
             glib::timeout_add_local(Duration::from_millis(150), move || {
                 // 1. Connection status update
@@ -439,7 +537,10 @@ pub mod gtk_ui {
                         status_badge_c.set_css_classes(&["badge", "waiting"]);
                         status_label_c.set_text("Pairing in progress...");
                     }
-                    ConnectionStatus::AndroidConnected { device_id, device_name } => {
+                    ConnectionStatus::AndroidConnected {
+                        device_id,
+                        device_name,
+                    } => {
                         status_badge_c.set_text(" ● Android Connected ");
                         status_badge_c.set_css_classes(&["badge", "connected"]);
                         status_label_c.set_text(&device_name);
@@ -456,10 +557,20 @@ pub mod gtk_ui {
                 // 2. Device specs update
                 if let Some(info) = info_rx.borrow_and_update().as_ref() {
                     dev_model_c.set_text(&format!("{} {}", info.manufacturer, info.model));
-                    dev_os_c.set_text(&format!("Android {} (API {})", info.android_version, info.sdk_level));
-                    let charging_str = if info.is_charging { "⚡ Charging" } else { "Discharging" };
+                    dev_os_c.set_text(&format!(
+                        "Android {} (API {})",
+                        info.android_version, info.sdk_level
+                    ));
+                    let charging_str = if info.is_charging {
+                        "⚡ Charging"
+                    } else {
+                        "Discharging"
+                    };
                     dev_battery_c.set_text(&format!("{}% ({})", info.battery_level, charging_str));
-                    dev_screen_c.set_text(&format!("{} × {} ({})", info.screen_width, info.screen_height, info.orientation));
+                    dev_screen_c.set_text(&format!(
+                        "{} × {} ({})",
+                        info.screen_width, info.screen_height, info.orientation
+                    ));
                     dev_service_c.set_text(&info.service_status);
                     dev_id_c.set_text(&info.device_id);
                 }
@@ -470,37 +581,41 @@ pub mod gtk_ui {
                     WebRtcState::Disconnected => {
                         webrtc_badge_c.set_text(" ● WebRTC: Disconnected ");
                         webrtc_badge_c.set_css_classes(&["badge", "error"]);
-                        btn_stream_toggle_c.set_label("▶ Start Screen Stream");
+                        btn_stream_toggle_c.set_label("▶ Start Stream");
                         *is_streaming_c.borrow_mut() = false;
+                        if current_surface_cleaner.borrow().is_some() {
+                            *current_surface_cleaner.borrow_mut() = None;
+                            drawing_area_cleaner.queue_draw();
+                        }
                     }
                     WebRtcState::Connecting => {
-                        webrtc_badge_c.set_text(" ◌ WebRTC: Connecting P2P... ");
+                        webrtc_badge_c.set_text(" ◌ WebRTC: Connecting... ");
                         webrtc_badge_c.set_css_classes(&["badge", "waiting"]);
-                        btn_stream_toggle_c.set_label("⏹ Stop Screen Stream");
+                        btn_stream_toggle_c.set_label("⏹ Stop Stream");
                         *is_streaming_c.borrow_mut() = true;
                     }
                     WebRtcState::ConnectedDirectP2P => {
-                        webrtc_badge_c.set_text(" ● WebRTC: Direct P2P Connected ");
+                        webrtc_badge_c.set_text(" ● P2P Connected ");
                         webrtc_badge_c.set_css_classes(&["badge", "connected"]);
-                        btn_stream_toggle_c.set_label("⏹ Stop Screen Stream");
+                        btn_stream_toggle_c.set_label("⏹ Stop Stream");
                         *is_streaming_c.borrow_mut() = true;
                     }
                     WebRtcState::ConnectedRelayFallback => {
-                        webrtc_badge_c.set_text(" ● WebRTC: Relay Fallback ");
+                        webrtc_badge_c.set_text(" ● Relay Fallback ");
                         webrtc_badge_c.set_css_classes(&["badge", "waiting"]);
-                        btn_stream_toggle_c.set_label("⏹ Stop Screen Stream");
+                        btn_stream_toggle_c.set_label("⏹ Stop Stream");
                         *is_streaming_c.borrow_mut() = true;
                     }
                     WebRtcState::Reconnecting => {
-                        webrtc_badge_c.set_text(" ◌ WebRTC: Reconnecting... ");
+                        webrtc_badge_c.set_text(" ◌ Reconnecting... ");
                         webrtc_badge_c.set_css_classes(&["badge", "reconnecting"]);
-                        btn_stream_toggle_c.set_label("⏹ Stop Screen Stream");
+                        btn_stream_toggle_c.set_label("⏹ Stop Stream");
                         *is_streaming_c.borrow_mut() = true;
                     }
                     WebRtcState::Failed(msg) => {
                         webrtc_badge_c.set_text(&format!(" ● WebRTC Failed: {} ", msg));
                         webrtc_badge_c.set_css_classes(&["badge", "error"]);
-                        btn_stream_toggle_c.set_label("▶ Start Screen Stream");
+                        btn_stream_toggle_c.set_label("▶ Start Stream");
                         *is_streaming_c.borrow_mut() = false;
                     }
                 }
@@ -508,22 +623,26 @@ pub mod gtk_ui {
                 // 4. Adaptive Bitrate & Stream Metrics update
                 let stats = webrtc_stats_rx.borrow_and_update().clone();
                 if *is_streaming_c.borrow() {
-                    let orient_str = if stats.is_landscape { "Landscape" } else { "Portrait" };
+                    let orient_str = if stats.is_landscape {
+                        "Landscape Asli"
+                    } else {
+                        "Portrait (Miringkan HP untuk Landscape Penuh)"
+                    };
                     metrics_label_c.set_text(&format!(
-                        "Resolution: {} × {} ({}) | Latency: Low (<30ms) | Bitrate: {} kbps | {} FPS | Pkts: {}",
+                        "{}×{} [{}] | Low Latency | {} kbps | {} FPS",
                         stats.width,
                         stats.height,
                         orient_str,
                         stats.estimated_bitrate_kbps,
-                        stats.estimated_fps,
-                        stats.packets_received
+                        stats.estimated_fps
                     ));
                 }
 
                 glib::ControlFlow::Continue
             });
 
-            window.set_child(Some(&main_box));
+            // Set DrawingArea as full-window content
+            window.set_child(Some(&drawing_area));
             window.present();
         });
 

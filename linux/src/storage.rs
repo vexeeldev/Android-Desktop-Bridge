@@ -70,7 +70,13 @@ impl Database {
                 name = excluded.name,
                 public_key = excluded.public_key,
                 last_seen = excluded.last_seen",
-            params![dev.device_id, dev.name, dev.public_key, dev.paired_at, dev.last_seen],
+            params![
+                dev.device_id,
+                dev.name,
+                dev.public_key,
+                dev.paired_at,
+                dev.last_seen
+            ],
         )?;
         info!("Saved trusted device: {} ({})", dev.name, dev.device_id);
         Ok(())
@@ -185,7 +191,8 @@ mod tests {
     #[test]
     fn test_settings() {
         let db = Database::open_in_memory().unwrap();
-        db.set_setting("relay_url", "ws://127.0.0.1:8080/ws").unwrap();
+        db.set_setting("relay_url", "ws://127.0.0.1:8080/ws")
+            .unwrap();
         assert_eq!(
             db.get_setting("relay_url").unwrap().as_deref(),
             Some("ws://127.0.0.1:8080/ws")

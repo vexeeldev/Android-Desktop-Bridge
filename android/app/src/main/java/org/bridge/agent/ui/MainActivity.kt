@@ -11,6 +11,7 @@ import android.graphics.Color
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -18,10 +19,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import android.provider.Settings
 import org.bridge.agent.R
 import org.bridge.agent.crypto.KeyStoreManager
 import org.bridge.agent.network.RelayClient
 import org.bridge.agent.service.BridgeForegroundService
+import org.bridge.agent.service.BridgeNotificationListenerService
 
 class MainActivity : AppCompatActivity() {
 
@@ -38,6 +41,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvStreamStatus: TextView
     private lateinit var btnScreenStream: Button
 
+    private lateinit var tvNotifAccessStatus: TextView
+    private lateinit var btnEnableNotifAccess: Button
+
     private var isServiceRunning = false
     private var isScreenStreaming = false
 
@@ -45,6 +51,7 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            Log.i(TAG, "MediaProjection permission granted by user. Starting streaming foreground service...")
             val streamIntent = Intent(this, BridgeForegroundService::class.java).apply {
                 action = BridgeForegroundService.ACTION_START_STREAM
                 putExtra(BridgeForegroundService.EXTRA_CAPTURE_INTENT_DATA, result.data)
@@ -58,6 +65,7 @@ class MainActivity : AppCompatActivity() {
             btnScreenStream.text = "Stop Screen Sharing"
             tvStreamStatus.text = "Screen streaming is active (WebRTC)"
         } else {
+            Log.w(TAG, "MediaProjection permission denied or cancelled (resultCode=${result.resultCode})")
             tvStreamStatus.text = "Screen capture permission declined"
         }
     }
@@ -99,6 +107,14 @@ class MainActivity : AppCompatActivity() {
         tvStreamStatus = findViewById(R.id.tvStreamStatus)
         btnScreenStream = findViewById(R.id.btnScreenStream)
 
+        tvNotifAccessStatus = findViewById(R.id.tvNotifAccessStatus)
+        btnEnableNotifAccess = findViewById(R.id.btnEnableNotifAccess)
+
+        btnEnableNotifAccess.setOnClickListener {
+            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            startActivity(intent)
+        }
+
         btnRegeneratePin.setOnClickListener {
             val newPin = keyStoreManager.generateNewPin()
             tvPairingPin.text = formatPin(newPin)
@@ -119,6 +135,8 @@ class MainActivity : AppCompatActivity() {
                 startScreenStream()
             }
         }
+
+        updateNotificationAccessUi()
     }
 
     private fun startScreenStream() {
@@ -259,8 +277,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        Log.i(TAG, "MainActivity onStart() - Activity visible")
+    }
+
     override fun onResume() {
         super.onResume()
+        Log.i(TAG, "MainActivity onResume() - Activity in foreground")
+        updateNotificationAccessUi()
         val filter = IntentFilter().apply {
             addAction(BridgeForegroundService.ACTION_STATUS_CHANGED)
             addAction(BridgeForegroundService.ACTION_STREAM_STATE_CHANGED)
@@ -272,11 +297,44 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateNotificationAccessUi() {
+        val granted = BridgeNotificationListenerService.isNotificationAccessGranted(this)
+        if (granted) {
+            tvNotifAccessStatus.text = "● Notification Access Granted"
+            tvNotifAccessStatus.setTextColor(Color.parseColor("#166534"))
+            btnEnableNotifAccess.isEnabled = false
+            btnEnableNotifAccess.text = "Access Active"
+        } else {
+            tvNotifAccessStatus.text = "○ Notification Access Required"
+            tvNotifAccessStatus.setTextColor(Color.parseColor("#991B1B"))
+            btnEnableNotifAccess.isEnabled = true
+            btnEnableNotifAccess.text = "Grant Notification Access"
+        }
+    }
+
     override fun onPause() {
         super.onPause()
+        Log.i(TAG, "MainActivity onPause() - Activity pausing")
         try {
             unregisterReceiver(statusReceiver)
         } catch (_: Exception) {}
+    }
+
+    override fun onStop() {
+        super.onStop()
+        Log.i(
+            TAG,
+            "MainActivity onStop() - Activity backgrounded (BridgeForegroundService maintains stream=$isScreenStreaming)"
+        )
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.i(TAG, "MainActivity onDestroy()")
+    }
+
+    companion object {
+        private const val TAG = "MainActivity"
     }
 }
 

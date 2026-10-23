@@ -9,7 +9,9 @@ use tokio_tungstenite::tungstenite::Message;
 #[tokio::test]
 async fn test_full_relay_pairing_and_connection_flow() {
     // 1. Start Relay on ephemeral port
-    let listener = TcpListener::bind("127.0.0.1:0").await.expect("Failed to bind relay");
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("Failed to bind relay");
 
     tokio::spawn(async move {
         while let Ok((stream, _)) = listener.accept().await {
@@ -18,7 +20,9 @@ async fn test_full_relay_pairing_and_connection_flow() {
                     while let Some(Ok(msg)) = ws_stream.next().await {
                         if let Message::Text(text) = msg {
                             if let Ok(env) = MessageEnvelope::from_json(&text) {
-                                if let MessagePayload::HandshakeRequest { device_id, .. } = &env.payload {
+                                if let MessagePayload::HandshakeRequest { device_id, .. } =
+                                    &env.payload
+                                {
                                     let resp = MessageEnvelope::new(
                                         "relay".into(),
                                         Some(device_id.clone()),
@@ -28,7 +32,9 @@ async fn test_full_relay_pairing_and_connection_flow() {
                                             message: "OK".into(),
                                         },
                                     );
-                                    let _ = ws_stream.send(Message::Text(resp.to_json().unwrap())).await;
+                                    let _ = ws_stream
+                                        .send(Message::Text(resp.to_json().unwrap()))
+                                        .await;
                                 }
                             }
                         }
@@ -41,7 +47,10 @@ async fn test_full_relay_pairing_and_connection_flow() {
     // 2. Validate cryptographic authentication handshake format
     let linux_kp = DeviceKeyPair::generate();
     let linux_id = linux_kp.device_id();
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
     let nonce = "test_nonce_999";
     let challenge = format!("{}:{}:{}", linux_id, now, nonce);
     let sig = linux_kp.sign(challenge.as_bytes());
@@ -50,7 +59,8 @@ async fn test_full_relay_pairing_and_connection_flow() {
         &linux_kp.public_key_hex(),
         challenge.as_bytes(),
         &sig
-    ).is_ok());
+    )
+    .is_ok());
 
     // 3. Validate pairing exchange payload
     let android_kp = DeviceKeyPair::generate();
@@ -84,7 +94,12 @@ async fn test_full_relay_pairing_and_connection_flow() {
     let resp_json = resp_env.to_json().unwrap();
     let decoded_resp = MessageEnvelope::from_json(&resp_json).unwrap();
 
-    if let MessagePayload::PairingResponse { accepted, responder_name, .. } = decoded_resp.payload {
+    if let MessagePayload::PairingResponse {
+        accepted,
+        responder_name,
+        ..
+    } = decoded_resp.payload
+    {
         assert!(accepted);
         assert_eq!(responder_name, "Samsung Galaxy S24 Ultra");
     }
@@ -114,10 +129,13 @@ async fn test_device_info_request_response_flow() {
     // 1. Linux Controller sends DeviceInfoRequest
     let req_payload = MessagePayload::DeviceInfoRequest;
     let req_env = MessageEnvelope::new(linux_id.clone(), Some(android_id.clone()), req_payload);
-    let req_json = req_env.to_json().expect("DeviceInfoRequest serialization failed");
+    let req_json = req_env
+        .to_json()
+        .expect("DeviceInfoRequest serialization failed");
 
     // Verify deserialization by Android
-    let decoded_req = MessageEnvelope::from_json(&req_json).expect("DeviceInfoRequest deserialization failed");
+    let decoded_req =
+        MessageEnvelope::from_json(&req_json).expect("DeviceInfoRequest deserialization failed");
     assert_eq!(decoded_req.sender, linux_id);
     assert_eq!(decoded_req.recipient, Some(android_id.clone()));
     match decoded_req.payload {
@@ -140,10 +158,13 @@ async fn test_device_info_request_response_flow() {
         service_status: "FOREGROUND_ACTIVE".into(),
     };
     let resp_env = MessageEnvelope::new(android_id.clone(), Some(linux_id.clone()), resp_payload);
-    let resp_json = resp_env.to_json().expect("DeviceInfoResponse serialization failed");
+    let resp_json = resp_env
+        .to_json()
+        .expect("DeviceInfoResponse serialization failed");
 
     // 3. Linux Controller receives and parses DeviceInfoResponse
-    let decoded_resp = MessageEnvelope::from_json(&resp_json).expect("DeviceInfoResponse deserialization failed");
+    let decoded_resp =
+        MessageEnvelope::from_json(&resp_json).expect("DeviceInfoResponse deserialization failed");
     assert_eq!(decoded_resp.sender, android_id);
     assert_eq!(decoded_resp.recipient, Some(linux_id));
 
@@ -192,8 +213,11 @@ async fn test_webrtc_signaling_and_screen_stream_flow() {
         fps: 60,
     };
     let start_env = MessageEnvelope::new(linux_id.clone(), Some(android_id.clone()), screen_start);
-    let start_json = start_env.to_json().expect("ScreenStart serialization failed");
-    let decoded_start = MessageEnvelope::from_json(&start_json).expect("ScreenStart deserialization failed");
+    let start_json = start_env
+        .to_json()
+        .expect("ScreenStart serialization failed");
+    let decoded_start =
+        MessageEnvelope::from_json(&start_json).expect("ScreenStart deserialization failed");
     match decoded_start.payload {
         MessagePayload::ScreenStart { width, height, fps } => {
             assert_eq!(width, 1920);
@@ -204,11 +228,17 @@ async fn test_webrtc_signaling_and_screen_stream_flow() {
     }
 
     // 2. Controller sends WebRTC Offer SDP
-    let offer_sdp = "v=0\r\no=- 12345 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n";
-    let offer_payload = MessagePayload::WebRtcOffer { sdp: offer_sdp.into() };
+    let offer_sdp =
+        "v=0\r\no=- 12345 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n";
+    let offer_payload = MessagePayload::WebRtcOffer {
+        sdp: offer_sdp.into(),
+    };
     let offer_env = MessageEnvelope::new(linux_id.clone(), Some(android_id.clone()), offer_payload);
-    let offer_json = offer_env.to_json().expect("WebRtcOffer serialization failed");
-    let decoded_offer = MessageEnvelope::from_json(&offer_json).expect("WebRtcOffer deserialization failed");
+    let offer_json = offer_env
+        .to_json()
+        .expect("WebRtcOffer serialization failed");
+    let decoded_offer =
+        MessageEnvelope::from_json(&offer_json).expect("WebRtcOffer deserialization failed");
     if let MessagePayload::WebRtcOffer { sdp } = decoded_offer.payload {
         assert_eq!(sdp, offer_sdp);
     } else {
@@ -217,10 +247,16 @@ async fn test_webrtc_signaling_and_screen_stream_flow() {
 
     // 3. Android Agent answers with WebRTC Answer SDP
     let answer_sdp = "v=0\r\no=- 54321 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=sendrecv\r\n";
-    let answer_payload = MessagePayload::WebRtcAnswer { sdp: answer_sdp.into() };
-    let answer_env = MessageEnvelope::new(android_id.clone(), Some(linux_id.clone()), answer_payload);
-    let answer_json = answer_env.to_json().expect("WebRtcAnswer serialization failed");
-    let decoded_answer = MessageEnvelope::from_json(&answer_json).expect("WebRtcAnswer deserialization failed");
+    let answer_payload = MessagePayload::WebRtcAnswer {
+        sdp: answer_sdp.into(),
+    };
+    let answer_env =
+        MessageEnvelope::new(android_id.clone(), Some(linux_id.clone()), answer_payload);
+    let answer_json = answer_env
+        .to_json()
+        .expect("WebRtcAnswer serialization failed");
+    let decoded_answer =
+        MessageEnvelope::from_json(&answer_json).expect("WebRtcAnswer deserialization failed");
     if let MessagePayload::WebRtcAnswer { sdp } = decoded_answer.payload {
         assert_eq!(sdp, answer_sdp);
     } else {
@@ -235,9 +271,17 @@ async fn test_webrtc_signaling_and_screen_stream_flow() {
         sdp_mline_index: Some(0),
     };
     let ice_env = MessageEnvelope::new(android_id.clone(), Some(linux_id.clone()), ice_payload);
-    let ice_json = ice_env.to_json().expect("WebRtcIceCandidate serialization failed");
-    let decoded_ice = MessageEnvelope::from_json(&ice_json).expect("WebRtcIceCandidate deserialization failed");
-    if let MessagePayload::WebRtcIceCandidate { candidate, sdp_mid, sdp_mline_index } = decoded_ice.payload {
+    let ice_json = ice_env
+        .to_json()
+        .expect("WebRtcIceCandidate serialization failed");
+    let decoded_ice =
+        MessageEnvelope::from_json(&ice_json).expect("WebRtcIceCandidate deserialization failed");
+    if let MessagePayload::WebRtcIceCandidate {
+        candidate,
+        sdp_mid,
+        sdp_mline_index,
+    } = decoded_ice.payload
+    {
         assert_eq!(candidate, ice_candidate);
         assert_eq!(sdp_mid, Some("video".into()));
         assert_eq!(sdp_mline_index, Some(0));
@@ -249,11 +293,48 @@ async fn test_webrtc_signaling_and_screen_stream_flow() {
     let stop_payload = MessagePayload::ScreenStop;
     let stop_env = MessageEnvelope::new(linux_id, Some(android_id), stop_payload);
     let stop_json = stop_env.to_json().expect("ScreenStop serialization failed");
-    let decoded_stop = MessageEnvelope::from_json(&stop_json).expect("ScreenStop deserialization failed");
+    let decoded_stop =
+        MessageEnvelope::from_json(&stop_json).expect("ScreenStop deserialization failed");
     match decoded_stop.payload {
         MessagePayload::ScreenStop => {}
         other => panic!("Expected ScreenStop, got {:?}", other),
     }
 }
 
+#[tokio::test]
+async fn test_activity_event_and_removed_payload_flow() {
+    let android_id = "android_dev_456".to_string();
+    let linux_id = "linux_dev_123".to_string();
 
+    let event = MessagePayload::ActivityEvent {
+        event_id: "whatsapp-key-123".into(),
+        category: "MESSAGE".into(),
+        package_name: "com.whatsapp".into(),
+        app_name: "WhatsApp".into(),
+        title: "Budi".into(),
+        body: "ke kantor jam berapa?".into(),
+        timestamp: 1791812345000,
+        unread: true,
+        icon: None,
+        conversation_id: None,
+        person_name: Some("Budi".into()),
+        is_ongoing: Some(false),
+        is_clearable: Some(true),
+        can_reply: Some(true),
+    };
+
+    let env = MessageEnvelope::new(android_id.clone(), Some(linux_id.clone()), event);
+    let json = env.to_json().expect("Serialization failed");
+    assert!(json.contains("ActivityEvent"));
+    assert!(json.contains("WhatsApp"));
+    assert!(json.contains("Budi"));
+    assert!(json.contains("ke kantor jam berapa?"));
+
+    let decoded = MessageEnvelope::from_json(&json).expect("Deserialization failed");
+    if let MessagePayload::ActivityEvent { title, body, .. } = decoded.payload {
+        assert_eq!(title, "Budi");
+        assert_eq!(body, "ke kantor jam berapa?");
+    } else {
+        panic!("Expected ActivityEvent");
+    }
+}

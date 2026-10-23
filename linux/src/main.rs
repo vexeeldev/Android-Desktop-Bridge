@@ -1,15 +1,17 @@
 mod client;
 mod identity;
+pub mod ipc;
 mod storage;
 mod ui;
 pub mod webrtc;
 
 use client::{BridgeClient, ConnectionStatus};
 use identity::IdentityManager;
-use storage::Database;
+use ipc::IpcServer;
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
+use storage::Database;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
@@ -60,13 +62,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(" Relay URL: {}", relay_url);
     info!("==========================================");
 
-    let identity = Arc::new(IdentityManager::load_or_create(custom_config_dir.as_deref())?);
+    let identity = Arc::new(IdentityManager::load_or_create(
+        custom_config_dir.as_deref(),
+    )?);
     let db_path = identity.config_dir().join("bridge.db");
     let db = Arc::new(Database::open(&db_path)?);
 
     info!("Controller Device ID: {}", identity.device_id());
 
-    let (client_instance, outbound_rx) = BridgeClient::new(Arc::clone(&identity), Arc::clone(&db));
+    // Start local IPC server for GNOME Extension / local consumers
+    let ipc = Arc::new(IpcServer::new(None));
+    let ipc_for_server = Arc::clone(&ipc);
+    tokio::spawn(async move {
+        if let Err(e) = ipc_for_server.run_server().await {
+            tracing::warn!("Bridge IPC server encountered error: {}", e);
+        }
+    });
+
+    let (client_instance, outbound_rx) = BridgeClient::new(
+        Arc::clone(&identity),
+        Arc::clone(&db),
+        Some(Arc::clone(&ipc)),
+    );
     let client = Arc::new(client_instance);
 
     // Spawn async background connection task
@@ -97,8 +114,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     while status_rx.changed().await.is_ok() {
         let current = status_rx.borrow().clone();
         match current {
-            ConnectionStatus::AndroidConnected { device_id, device_name } => {
-                info!("STATUS: Android Connected (Device: {}, ID: {})", device_name, device_id);
+            ConnectionStatus::AndroidConnected {
+                device_id,
+                device_name,
+            } => {
+                info!(
+                    "STATUS: Android Connected (Device: {}, ID: {})",
+                    device_name, device_id
+                );
             }
             s => {
                 info!("STATUS: {:?}", s);

@@ -163,6 +163,31 @@ pub enum MessagePayload {
         title: String,
         text: String,
     },
+    ActivityEvent {
+        event_id: String,
+        category: String,
+        package_name: String,
+        app_name: String,
+        title: String,
+        body: String,
+        timestamp: u64,
+        unread: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        icon: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        conversation_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        person_name: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        is_ongoing: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        is_clearable: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        can_reply: Option<bool>,
+    },
+    ActivityRemoved {
+        event_id: String,
+    },
     FileRequest {
         file_id: String,
         file_name: String,
@@ -261,10 +286,53 @@ mod tests {
         let offer = MessagePayload::WebRtcOffer {
             sdp: "v=0\r\no=- 12345 2 IN IP4 127.0.0.1...".into(),
         };
-        let env = MessageEnvelope::new("dev_android".into(), Some("dev_linux".into()), offer.clone());
+        let env = MessageEnvelope::new(
+            "dev_android".into(),
+            Some("dev_linux".into()),
+            offer.clone(),
+        );
         let json = env.to_json().unwrap();
         let decoded = MessageEnvelope::from_json(&json).unwrap();
         assert_eq!(decoded.payload, offer);
     }
-}
 
+    #[test]
+    fn test_activity_event_roundtrip() {
+        let event = MessagePayload::ActivityEvent {
+            event_id: "com.whatsapp|12345|tag".into(),
+            category: "MESSAGE".into(),
+            package_name: "com.whatsapp".into(),
+            app_name: "WhatsApp".into(),
+            title: "Budi".into(),
+            body: "ke kantor jam berapa?".into(),
+            timestamp: 1791812345000,
+            unread: true,
+            icon: None,
+            conversation_id: None,
+            person_name: Some("Budi".into()),
+            is_ongoing: Some(false),
+            is_clearable: Some(true),
+            can_reply: Some(true),
+        };
+        let env = MessageEnvelope::new(
+            "dev_android".into(),
+            Some("dev_linux".into()),
+            event.clone(),
+        );
+        let json = env.to_json().unwrap();
+        let decoded = MessageEnvelope::from_json(&json).unwrap();
+        assert_eq!(decoded.payload, event);
+
+        let removed = MessagePayload::ActivityRemoved {
+            event_id: "com.whatsapp|12345|tag".into(),
+        };
+        let removed_env = MessageEnvelope::new(
+            "dev_android".into(),
+            Some("dev_linux".into()),
+            removed.clone(),
+        );
+        let removed_json = removed_env.to_json().unwrap();
+        let decoded_removed = MessageEnvelope::from_json(&removed_json).unwrap();
+        assert_eq!(decoded_removed.payload, removed);
+    }
+}

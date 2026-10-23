@@ -10,10 +10,7 @@ use tokio_tungstenite::WebSocketStream;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-pub async fn handle_connection(
-    stream: WebSocketStream<TcpStream>,
-    registry: Arc<SessionRegistry>,
-) {
+pub async fn handle_connection(stream: WebSocketStream<TcpStream>, registry: Arc<SessionRegistry>) {
     let (mut ws_sender, mut ws_receiver) = stream.split();
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<String>();
 

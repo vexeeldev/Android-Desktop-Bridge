@@ -19,6 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut relay_url = "ws://127.0.0.1:8080".to_string();
     let mut expected_pin = "123456".to_string();
     let mut auto_exit = false;
+    let mut send_event: Option<String> = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -37,6 +38,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             "--auto-exit" => {
                 auto_exit = true;
+            }
+            "--send-event" => {
+                if i + 1 < args.len() {
+                    send_event = Some(args[i + 1].clone());
+                    i += 1;
+                }
             }
             _ => {}
         }
@@ -87,7 +94,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Await Handshake Response
     if let Some(Ok(Message::Text(res_text))) = ws_receiver.next().await {
         let envelope = MessageEnvelope::from_json(&res_text)?;
-        if let MessagePayload::HandshakeResponse { success, message, .. } = envelope.payload {
+        if let MessagePayload::HandshakeResponse {
+            success, message, ..
+        } = envelope.payload
+        {
             if !success {
                 error!("Handshake rejected by relay: {}", message);
                 return Err("Handshake rejected".into());
@@ -142,7 +152,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ws_sender.send(Message::Text(response.to_json()?)).await?;
 
                     if accepted {
-                        info!("Pairing completed successfully with controller {}!", initiator_id);
+                        info!(
+                            "Pairing completed successfully with controller {}!",
+                            initiator_id
+                        );
 
                         // Send status update indicating connected
                         let status_msg = MessageEnvelope::new(
@@ -168,7 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     info!("Received DeviceInfoRequest from peer {}", envelope.sender);
                     let info_response = MessageEnvelope::new(
                         device_id.clone(),
-                        Some(envelope.sender),
+                        Some(envelope.sender.clone()),
                         MessagePayload::DeviceInfoResponse {
                             device_id: device_id.clone(),
                             manufacturer: "Google".into(),
@@ -183,8 +196,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             service_status: "FOREGROUND_ACTIVE".into(),
                         },
                     );
-                    ws_sender.send(Message::Text(info_response.to_json()?)).await?;
+                    ws_sender
+                        .send(Message::Text(info_response.to_json()?))
+                        .await?;
                     info!("Sent DeviceInfoResponse back to peer");
+
+                    if let Some(event_str) = &send_event {
+                        let parts: Vec<&str> = event_str.split(':').collect();
+                        let app = parts.first().copied().unwrap_or("WhatsApp");
+                        let title = parts.get(1).copied().unwrap_or("Budi");
+                        let body = parts.get(2).copied().unwrap_or("ke kantor jam berapa?");
+                        let now = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis() as u64;
+
+                        let notif_env = MessageEnvelope::new(
+                            device_id.clone(),
+                            Some(envelope.sender.clone()),
+                            MessagePayload::ActivityEvent {
+                                event_id: format!("notif-{}", rand::random::<u32>()),
+                                category: "MESSAGE".into(),
+                                package_name: "com.whatsapp".into(),
+                                app_name: app.into(),
+                                title: title.into(),
+                                body: body.into(),
+                                timestamp: now,
+                                unread: true,
+                                icon: None,
+                                conversation_id: None,
+                                person_name: Some(title.into()),
+                                is_ongoing: Some(false),
+                                is_clearable: Some(true),
+                                can_reply: Some(true),
+                            },
+                        );
+                        ws_sender.send(Message::Text(notif_env.to_json()?)).await?;
+                        info!(
+                            "Sent simulated ActivityEvent for {} ({}: {})",
+                            app, title, body
+                        );
+                    }
                 }
                 MessagePayload::Ping { nonce } => {
                     let pong = MessageEnvelope::new(

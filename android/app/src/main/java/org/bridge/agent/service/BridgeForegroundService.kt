@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -15,6 +17,8 @@ import androidx.core.app.NotificationCompat
 import com.google.gson.Gson
 import org.bridge.agent.crypto.KeyStoreManager
 import org.bridge.agent.network.RelayClient
+import org.bridge.agent.protocol.ActivityEventData
+import org.bridge.agent.protocol.ActivityRemovedData
 import org.bridge.agent.protocol.MessageEnvelope
 import org.bridge.agent.protocol.WebRtcIceCandidateData
 import org.bridge.agent.protocol.WebRtcOfferData
@@ -24,14 +28,17 @@ import org.bridge.agent.webrtc.WebRtcStreamer
 class BridgeForegroundService : Service(), RelayClient.ConnectionListener, WebRtcStreamer.StreamStateListener {
 
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
     private var relayClient: RelayClient? = null
     private lateinit var keyStoreManager: KeyStoreManager
     private var webRtcStreamer: WebRtcStreamer? = null
     private var currentPeerId: String? = null
+    private var isStreamingActive = false
     private val gson = Gson()
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         keyStoreManager = KeyStoreManager(this)
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -41,6 +48,19 @@ class BridgeForegroundService : Service(), RelayClient.ConnectionListener, WebRt
         ).apply {
             setReferenceCounted(false)
             acquire(24 * 60 * 60 * 1000L) // 24 hours max
+            Log.i(TAG, "Acquired WakeLock for foreground service")
+        }
+
+        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        wifiLock = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            wifiManager?.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "BridgeAgent::WifiLock")
+        } else {
+            @Suppress("DEPRECATION")
+            wifiManager?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "BridgeAgent::WifiLock")
+        }?.apply {
+            setReferenceCounted(false)
+            acquire()
+            Log.i(TAG, "Acquired WifiLock in low-latency/high-perf mode")
         }
 
         createNotificationChannel()
@@ -54,8 +74,7 @@ class BridgeForegroundService : Service(), RelayClient.ConnectionListener, WebRt
         }
 
         val relayUrl = intent?.getStringExtra(EXTRA_RELAY_URL) ?: "ws://10.0.2.2:8080"
-        val notification = buildNotification("Initializing connection...")
-        startForeground(NOTIFICATION_ID, notification)
+        updateForegroundNotification("Initializing connection...")
 
         val identity = keyStoreManager.getOrCreateIdentity()
         if (relayClient == null) {
@@ -88,16 +107,40 @@ class BridgeForegroundService : Service(), RelayClient.ConnectionListener, WebRt
             currentPeerId = peerId
             if (captureIntent != null) {
                 Log.i(TAG, "Starting WebRTC screen capture with target peer: $peerId")
+                isStreamingActive = true
+                // CRITICAL: Elevate foreground service to MEDIA_PROJECTION *before* acquiring projection
+                updateForegroundNotification("Streaming screen to controller")
                 webRtcStreamer?.startScreenStreaming(captureIntent, peerId)
                 broadcastStreamState("STREAMING_ACTIVE")
             }
         } else if (action == ACTION_STOP_STREAM) {
             Log.i(TAG, "Stopping WebRTC screen capture")
+            isStreamingActive = false
             webRtcStreamer?.stopStreaming()
+            updateForegroundNotification("Connected to controller")
             broadcastStreamState("STREAMING_STOPPED")
         }
 
         return START_STICKY
+    }
+
+    private fun updateForegroundNotification(statusText: String) {
+        val notification = buildNotification(statusText)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            var serviceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+            if (isStreamingActive) {
+                serviceType = serviceType or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            }
+            try {
+                startForeground(NOTIFICATION_ID, notification, serviceType)
+                Log.i(TAG, "startForeground called with serviceType=$serviceType (streamingActive=$isStreamingActive)")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed startForeground with type $serviceType, falling back to basic", e)
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
     }
 
     override fun onStateChanged(state: RelayClient.State, details: String) {
@@ -105,7 +148,7 @@ class BridgeForegroundService : Service(), RelayClient.ConnectionListener, WebRt
             RelayClient.State.DISCONNECTED -> "Disconnected"
             RelayClient.State.CONNECTING -> "Connecting to relay..."
             RelayClient.State.RELAY_CONNECTED -> "Relay connected (waiting for controller)"
-            RelayClient.State.PAIRED_AND_CONNECTED -> "Android Connected"
+            RelayClient.State.PAIRED_AND_CONNECTED -> if (isStreamingActive) "Android Connected (Streaming)" else "Android Connected"
             RelayClient.State.ERROR -> "Error: $details"
         }
 
@@ -144,7 +187,9 @@ class BridgeForegroundService : Service(), RelayClient.ConnectionListener, WebRt
                 }
                 "ScreenStop" -> {
                     Log.i(TAG, "Received ScreenStop request from ${envelope.sender}")
+                    isStreamingActive = false
                     webRtcStreamer?.stopStreaming()
+                    updateForegroundNotification("Connected to controller")
                     broadcastStreamState("STREAMING_STOPPED")
                 }
             }
@@ -155,6 +200,11 @@ class BridgeForegroundService : Service(), RelayClient.ConnectionListener, WebRt
 
     override fun onConnectionStateChanged(state: String) {
         Log.i(TAG, "WebRTC connection state: $state")
+        if (state == "CLOSED" || state == "FAILED") {
+            if (isStreamingActive) {
+                Log.w(TAG, "WebRTC connection state reached $state while isStreamingActive=true")
+            }
+        }
         broadcastStreamState(state)
     }
 
@@ -210,6 +260,13 @@ class BridgeForegroundService : Service(), RelayClient.ConnectionListener, WebRt
         try {
             if (wakeLock?.isHeld == true) {
                 wakeLock?.release()
+                Log.i(TAG, "Released WakeLock")
+            }
+        } catch (_: Exception) {}
+        try {
+            if (wifiLock?.isHeld == true) {
+                wifiLock?.release()
+                Log.i(TAG, "Released WifiLock")
             }
         } catch (_: Exception) {}
 
@@ -218,6 +275,39 @@ class BridgeForegroundService : Service(), RelayClient.ConnectionListener, WebRt
             putExtra(EXTRA_DETAILS, "Service stopped")
         }
         sendBroadcast(broadcast)
+        if (instance == this) {
+            instance = null
+        }
+    }
+
+    fun sendActivityEvent(eventData: ActivityEventData): Boolean {
+        val client = relayClient ?: return false
+        val identity = keyStoreManager.getOrCreateIdentity()
+        val peerId = currentPeerId ?: keyStoreManager.getLastTrustedControllerId()
+        val envelope = MessageEnvelope.create(
+            sender = identity.deviceId,
+            recipient = peerId,
+            type = "ActivityEvent",
+            data = eventData
+        )
+        val sent = client.sendEnvelope(envelope)
+        Log.i(TAG, "Sent ActivityEvent [${eventData.event_id}] app=${eventData.app_name} title=${eventData.title} -> success=$sent")
+        return sent
+    }
+
+    fun sendActivityRemoved(removedData: ActivityRemovedData): Boolean {
+        val client = relayClient ?: return false
+        val identity = keyStoreManager.getOrCreateIdentity()
+        val peerId = currentPeerId ?: keyStoreManager.getLastTrustedControllerId()
+        val envelope = MessageEnvelope.create(
+            sender = identity.deviceId,
+            recipient = peerId,
+            type = "ActivityRemoved",
+            data = removedData
+        )
+        val sent = client.sendEnvelope(envelope)
+        Log.i(TAG, "Sent ActivityRemoved [${removedData.event_id}] -> success=$sent")
+        return sent
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -239,6 +329,18 @@ class BridgeForegroundService : Service(), RelayClient.ConnectionListener, WebRt
 
         const val ACTION_STREAM_STATE_CHANGED = "org.bridge.agent.STREAM_STATE_CHANGED"
         const val EXTRA_STREAM_STATE = "extra_stream_state"
+
+        @Volatile
+        var instance: BridgeForegroundService? = null
+            private set
+
+        fun sendEvent(eventData: ActivityEventData): Boolean {
+            return instance?.sendActivityEvent(eventData) ?: false
+        }
+
+        fun sendRemoved(removedData: ActivityRemovedData): Boolean {
+            return instance?.sendActivityRemoved(removedData) ?: false
+        }
     }
 }
 

@@ -16,7 +16,9 @@ impl IdentityManager {
             Some(d) => d.to_path_buf(),
             None => {
                 let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-                PathBuf::from(home).join(".config").join("android-desktop-bridge")
+                PathBuf::from(home)
+                    .join(".config")
+                    .join("android-desktop-bridge")
             }
         };
 
@@ -88,7 +90,8 @@ mod tests {
 
     #[test]
     fn test_identity_persistence() {
-        let temp_dir = std::env::temp_dir().join(format!("bridge_id_test_{}", rand::random::<u32>()));
+        let temp_dir =
+            std::env::temp_dir().join(format!("bridge_id_test_{}", rand::random::<u32>()));
         let id_mgr1 = IdentityManager::load_or_create(Some(&temp_dir)).expect("Creation failed");
         let dev_id1 = id_mgr1.device_id();
 

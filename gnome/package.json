@@ -1,0 +1,21 @@
+{
+  "name": "bridge-gnome",
+  "version": "1.0.0",
+  "description": "GNOME Shell Extension UI prototype for Android Desktop Bridge",
+  "main": "build/extension.js",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "typecheck": "tsc --noEmit",
+    "validate": "npm run typecheck && npm run build && node --experimental-vm-modules scripts/test-syntax.js",
+    "install-extension": "node scripts/install.js",
+    "enable": "gnome-extensions enable bridge-gnome@bridge.org",
+    "disable": "gnome-extensions disable bridge-gnome@bridge.org",
+    "test-shell": "dbus-run-session -- gnome-shell --nested --wayland",
+    "reload": "npm run build && npm run install-extension && gnome-extensions disable bridge-gnome@bridge.org && sleep 0.2 && gnome-extensions enable bridge-gnome@bridge.org"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0"
+  }
+}

@@ -38,7 +38,11 @@ impl SessionRegistry {
     pub async fn unregister(&self, device_id: &str) {
         let mut map = self.sessions.write().await;
         if map.remove(device_id).is_some() {
-            info!("Unregistered device: id={}, total_online={}", device_id, map.len());
+            info!(
+                "Unregistered device: id={}, total_online={}",
+                device_id,
+                map.len()
+            );
         }
     }
 
@@ -55,10 +59,7 @@ impl SessionRegistry {
 
     pub async fn list_devices_by_role(&self, role: &str) -> Vec<DeviceSession> {
         let map = self.sessions.read().await;
-        map.values()
-            .filter(|s| s.role == role)
-            .cloned()
-            .collect()
+        map.values().filter(|s| s.role == role).cloned().collect()
     }
 
     #[allow(dead_code)]

@@ -1,0 +1,668 @@
+/* ==========================================================================
+   Bridge GNOME - Native Shell Extension Stylesheet
+   Designed to match Figma Reference Specifications & GNOME 46 Visuals
+   ========================================================================== */
+
+/* --- Top Bar Indicator --- */
+.bridge-panel-button-box {
+  spacing: 6px;
+  padding: 2px 6px;
+}
+
+.bridge-panel-icon {
+  icon-size: 18px;
+  color: #f3f4f6;
+}
+
+.bridge-panel-label {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+.bridge-panel-badge {
+  background-color: #22c55e;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 10px;
+  padding: 1px 7px;
+  margin-left: 4px;
+}
+
+/* --- Outer Menu Wrapper Reset (Eliminate Double Border & Outer Shadow) --- */
+.bridge-popup-menu.popup-menu,
+.bridge-popup-menu.popup-menu-boxpointer,
+.bridge-popup-menu {
+  -arrow-rise: 0px !important;
+  -boxpointer-gap: 0px !important;
+  -arrow-border-width: 0px !important;
+  -arrow-border-radius: 0px !important;
+  -arrow-background-color: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.bridge-popup-menu .popup-menu-content,
+.bridge-popup-menu-box,
+.bridge-popup-menu-content {
+  padding: 0 !important;
+  margin: 0 !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+/* --- Menu Wrapper & Reset --- */
+.bridge-menu-base-item {
+  padding: 0 !important;
+  margin: 0 !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+.bridge-menu-base-item:hover,
+.bridge-menu-base-item:focus,
+.bridge-menu-base-item:active {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* --- Unified Activity Hub Master Panel --- */
+.bridge-hub-panel {
+  width: 760px;
+  min-height: 440px;
+  max-height: 540px;
+  background-color: rgba(20, 20, 22, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0 0 32px 32px;
+  box-shadow: none !important;
+  padding: 14px;
+}
+
+/* --- Panel Header Bar --- */
+.bridge-hub-header {
+  padding: 4px 6px 12px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 12px;
+}
+
+.bridge-device-status-box {
+  spacing: 8px;
+}
+
+.bridge-status-dot-green {
+  color: #22c55e;
+  icon-size: 18px;
+  font-size: 24px;
+  font-weight: 800;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0;
+  padding: 0;
+}
+
+.bridge-status-dot-red {
+  color: #ef4444;
+  icon-size: 18px;
+  font-size: 24px;
+  font-weight: 800;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0;
+  padding: 0;
+}
+
+.bridge-device-title {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 5px;
+}
+
+.bridge-header-actions {
+  spacing: 8px;
+}
+
+.bridge-sim-button {
+  background-color: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #4ade80;
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.bridge-sim-button:hover {
+  background-color: rgba(34, 197, 94, 0.28);
+  color: #86efac;
+}
+
+.bridge-settings-button {
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
+  border-radius: 12px;
+  padding: 5px 8px;
+}
+
+.bridge-settings-button:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+/* --- Content Body (Dual Pane Layout) --- */
+.bridge-hub-content-body {
+  spacing: 0px;
+  x-expand: true;
+  y-expand: true;
+}
+
+/* --- Left Pane (Activity List) --- */
+/* .bridge-hub-left-pane {
+  width: 320px;
+  border-width: 0;
+  border-color: rgba(255, 255, 255, 0.2);
+  border-right-width: 1px;
+  padding-right: 12px;
+} */
+
+.bridge-hub-scroll-view {
+  min-height: 380px;
+  max-height: 460px;
+}
+
+.bridge-hub-list-box {
+  spacing: 8px;
+}
+
+.bridge-list-empty-label {
+  color: #6b7280;
+  font-size: 12px;
+  text-align: center;
+  padding: 30px 10px;
+}
+
+/* --- Activity Item Card --- */
+.bridge-activity-item {
+  /* background-color: rgba(255, 255, 255, 0.03); */
+  /* border: 1px solid rgba(255, 255, 255, 0.04); */
+  background-color: transparent;
+  border: none;
+  border-radius: 14px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.bridge-activity-item:hover {
+  /* background-color: rgba(255, 255, 255, 0.07); */
+  /* border-color: rgba(255, 255, 255, 0.1); */
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.bridge-activity-item-active {
+  /* background-color: rgba(255, 255, 255, 0.09); */
+  /* border: 1px solid rgba(34, 197, 94, 0.4); */
+}
+
+.bridge-activity-item-box {
+  spacing: 10px;
+}
+
+/* --- App Icon Badges --- */
+.bridge-item-icon-wrapper {
+  border-radius: 10px;
+  padding: 6px;
+  y-align: center;
+}
+
+.bridge-icon-whatsapp {
+  background-image: url('whatsapp.webp');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 !important;
+}
+
+.bridge-icon-whatsapp .bridge-item-icon,
+.bridge-icon-whatsapp StIcon {
+  icon-size: 0px !important;
+  color: transparent !important;
+  width: 0px !important;
+  height: 0px !important;
+}
+
+.bridge-icon-phone {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.bridge-icon-school {
+  background-color: #8b5cf6;
+  color: #ffffff;
+}
+
+.bridge-icon-gmail {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+.bridge-icon-default {
+  background-color: #4b5563;
+  color: #ffffff;
+}
+
+.bridge-item-icon {
+  icon-size: 18px;
+  color: #ffffff;
+}
+
+/* --- Activity Item Text Column --- */
+.bridge-item-text-column {
+  spacing: 2px;
+  y-align: center;
+}
+
+.bridge-item-title {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.bridge-item-body {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.bridge-item-action-link {
+  height: 0px !important;
+  font-size: 0px !important;
+  color: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.bridge-item-action-link:hover {
+  color: transparent !important;
+}
+
+/* --- Right Badge (Alert/Unread Dot) --- */
+.bridge-item-unread-badge {
+  background-color: #22c55e;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 10px;
+  width: 18px;
+  height: 18px;
+  text-align: center;
+  y-align: center;
+  margin: 0;
+  padding: 1px;
+}
+
+/* --- Right Pane (Detail View) --- */
+.bridge-hub-right-pane {
+  /* background-color: rgba(255, 255, 255, 0.02); */
+  /* border: 1px solid rgba(255, 255, 255, 0.04); */
+  background-color: transparent !important;
+  border: none !important;
+  border-radius: 0;
+  padding: 0 0 0 16px;
+}
+
+.bridge-detail-container {
+  spacing: 12px;
+}
+
+.bridge-detail-empty {
+  spacing: 12px;
+  padding: 40px 20px;
+}
+
+.bridge-detail-empty-icon {
+  color: #4b5563;
+}
+
+.bridge-detail-empty-text {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+/* --- Detail Header --- */
+.bridge-detail-header {
+  spacing: 8px;
+  padding-bottom: 8px;
+  /* border-bottom: 1px solid rgba(255, 255, 255, 0.05); */
+}
+
+.bridge-detail-back-button {
+  /* background-color: rgba(255, 255, 255, 0.06); */
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 8px;
+  padding: 4px 6px;
+  color: #d1d5db;
+}
+
+.bridge-detail-back-button:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.bridge-detail-header-icon-wrapper {
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.bridge-detail-header-title {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* --- Detail Header Close Button --- */
+.bridge-detail-close-button {
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 4px 10px;
+  color: #e5e7eb;
+}
+
+.bridge-detail-close-button:hover {
+  background-color: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.bridge-detail-close-box {
+  spacing: 5px;
+}
+
+.bridge-detail-close-icon {
+  icon-size: 13px;
+  color: #9ca3af;
+}
+
+.bridge-detail-close-button:hover .bridge-detail-close-icon {
+  color: #ffffff;
+}
+
+.bridge-detail-close-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.bridge-detail-close-button:hover .bridge-detail-close-label {
+  color: #ffffff;
+}
+
+/* --- Chat Messages Box --- */
+.bridge-detail-chat-scroll {
+  min-height: 280px;
+  max-height: 340px;
+}
+
+.bridge-detail-messages-box {
+  spacing: 10px;
+  padding: 6px 0;
+  min-width: 360px;
+}
+
+.bridge-chat-bubble-row {
+  margin-bottom: 6px;
+}
+
+.bridge-chat-incoming-row {
+  margin-right: 48px;
+  margin-left: 0;
+}
+
+.bridge-chat-outgoing-row {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.bridge-chat-bubble {
+  border-radius: 14px;
+  padding: 8px 14px;
+  max-width: 82%;
+}
+
+.bridge-chat-bubble-incoming {
+  background-color: rgba(255, 255, 255, 0.07);
+  border-bottom-left-radius: 4px;
+}
+
+.bridge-chat-bubble-outgoing {
+  background-color: #075e54;
+  border-bottom-right-radius: 4px;
+}
+
+.bridge-chat-bubble-text {
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* --- Chat Input Bar --- */
+.bridge-detail-input-bar {
+  spacing: 8px;
+  padding-top: 6px;
+}
+
+.bridge-detail-entry {
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  color: #ffffff;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.bridge-detail-entry:focus {
+  border-color: rgba(34, 197, 94, 0.6);
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.bridge-detail-send-button {
+  background-color: #22c55e;
+  border-radius: 20px;
+  padding: 8px 12px;
+  color: #ffffff;
+}
+
+.bridge-detail-send-button:hover {
+  background-color: #16a34a;
+}
+
+.bridge-send-icon {
+  icon-size: 16px;
+  color: #ffffff;
+}
+
+/* --- Call Detail View --- */
+.bridge-call-container {
+  spacing: 16px;
+  padding: 30px 10px;
+}
+
+.bridge-call-avatar-wrapper {
+  background-color: rgba(34, 197, 94, 0.15);
+  border-radius: 50px;
+  padding: 18px;
+}
+
+.bridge-call-avatar-icon {
+  color: #22c55e;
+  icon-size: 42px;
+}
+
+.bridge-call-caller-name {
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.bridge-call-subtitle {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.bridge-call-actions-row {
+  spacing: 16px;
+  margin-top: 10px;
+}
+
+.bridge-call-btn {
+  border-radius: 20px;
+  padding: 8px 24px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.bridge-call-decline {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+.bridge-call-decline:hover {
+  background-color: #dc2626;
+}
+
+.bridge-call-answer {
+  background-color: #22c55e;
+  color: #ffffff;
+}
+
+.bridge-call-answer:hover {
+  background-color: #16a34a;
+}
+
+/* --- Generic Detail View --- */
+.bridge-generic-detail-box {
+  spacing: 10px;
+  padding: 16px 8px;
+}
+
+.bridge-generic-detail-title {
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.bridge-generic-detail-time {
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.bridge-generic-detail-body {
+  color: #d1d5db;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.bridge-generic-action-row {
+  spacing: 12px;
+  margin-top: 16px;
+}
+
+.bridge-generic-btn-primary {
+  background-color: #22c55e;
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bridge-generic-btn-secondary {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #d1d5db;
+  border-radius: 12px;
+  padding: 6px 16px;
+  font-size: 12px;
+}
+
+/* --- Custom Floating Notification Popup --- */
+.bridge-notification-popup {
+  width: 360px;
+  background-color: rgba(20, 20, 22, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0 0 20px 20px;
+  box-shadow: none !important;
+  padding: 12px 14px;
+}
+
+.bridge-notification-popup:hover {
+  background-color: rgba(28, 28, 32, 0.98);
+}
+
+.bridge-notification-box {
+  spacing: 8px;
+}
+
+.bridge-notification-header {
+  spacing: 8px;
+}
+
+.bridge-notification-icon-wrapper {
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.bridge-notification-app-name {
+  color: #22c55e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.bridge-notification-time {
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.bridge-notification-close-btn {
+  color: #9ca3af;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.bridge-notification-close-btn:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.bridge-notification-body-box {
+  spacing: 2px;
+}
+
+.bridge-notification-title {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.bridge-notification-message {
+  color: #d1d5db;
+  font-size: 12px;
+}

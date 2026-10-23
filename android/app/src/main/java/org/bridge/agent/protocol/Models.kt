@@ -110,3 +110,26 @@ data class WebRtcIceCandidateData(
     val sdp_mline_index: Int? = null
 )
 
+// Activity Events (Phase 2 Notification Sync)
+data class ActivityEventData(
+    val event_id: String,
+    val category: String,
+    val package_name: String,
+    val app_name: String,
+    val title: String,
+    val body: String,
+    val timestamp: Long,
+    val unread: Boolean,
+    val icon: String? = null,
+    val conversation_id: String? = null,
+    val person_name: String? = null,
+    val is_ongoing: Boolean? = null,
+    val is_clearable: Boolean? = null,
+    val can_reply: Boolean? = null
+)
+
+data class ActivityRemovedData(
+    val event_id: String
+)
+
+

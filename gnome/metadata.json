@@ -1,0 +1,8 @@
+{
+  "name": "Bridge GNOME",
+  "description": "Visual frontend prototype for Android Desktop Bridge",
+  "uuid": "bridge-gnome@bridge.org",
+  "shell-version": ["46"],
+  "version": 1,
+  "url": "https://bridge.org"
+}
